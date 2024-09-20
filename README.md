@@ -1,5 +1,6 @@
 Discord bot playing audio with given YouTube video link
 
+
 How to set up your own Discord bot
  You'll need to create your own bot to make it run as it's only functional at local environment for now. Follow the steps below
  1. Go to the [Discord Developer Portal](https://discord.com/developers/applications/)
@@ -14,11 +15,12 @@ How to set up your own Discord bot
  10. Paste it in your browser address bar, it will give you an option in which server you want to invite the bot(you need administrator rights on the server)
  12. Run the bot program
 
+
 How to run the program
 1. Clone the repository
-    '''bash
+    ```bash
     git clone <repository_url>
 2. Copy '.env.example' to '.env' and fill in the required values(discord bot token which you have copied earlier)
-    '''bash
+    ```bash
     cp .env.example .env
 3. Run main.py in your IDE
