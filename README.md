@@ -1,7 +1,7 @@
 Discord bot playing audio with given YouTube video link
 
 
-How to set up your own Discord bot
+### How to set up your own Discord bot
 
  You'll need to create your own bot to make it run as it's only functional at local environment for now. Follow the steps below
  1. Go to the [Discord Developer Portal](https://discord.com/developers/applications/)
