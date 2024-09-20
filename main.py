@@ -118,10 +118,10 @@ class MusicBot(commands.Cog):
         self.current_song = video_url
         audio_url = await self.extract_audio_url(video_url)
         
-        vc.play(discord.FFmpegPCMAudio(executable="C:/ffmpeg_full_build/bin/ffmpeg.exe", # executable: ㅅㅂ 환경 변수 설정했는데 왜 안 됨?
+        vc.play(discord.FFmpegPCMAudio(executable="ffmpeg.exe",
                                     source=audio_url, 
                                     before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5", # before_options: 이거 없으면 3분 재생하고 ffmpeg 프로세스가 꺼짐 -> 재생 끊김
-                                    options="-vn"),
+                                    options="-vn -filter:a 'volume=0.7'"), # 기본 볼륨 70%
                                     after=lambda e: asyncio.run_coroutine_threadsafe(self.play_next(ctx), self.bot.loop)) # 재생 중인 음악이 끝나면 play_next 실행
         
 
