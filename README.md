@@ -38,6 +38,6 @@ How to download and run the program
     ```bash
     cp .env.example .env
 3. make 'audio_url_cache.json' <- cache file
-    ''''bash
+    ```bash
     touch audio_url_cache.json
 3. Run main.py in your IDE
