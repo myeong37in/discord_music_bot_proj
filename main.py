@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv # 토큰 가져옴
 from pytube import YouTube
 import yt_dlp
+import json
 
 class MusicBot(commands.Cog):
     def __init__(self, bot):
@@ -14,6 +15,23 @@ class MusicBot(commands.Cog):
         self.current_song = None
         self.video_cache = {} # 캐시 도입
         self.leave_timer = None
+        self.cache_file = "audio_url_cache.json"
+        self.load_cache()
+    
+    def load_cache(self):
+        if os.path.exists(self.cache_file):
+            with open(self.cache_file, "r") as file:
+                try:
+                    self.video_cache = json.load(file)
+                except json.JSONDecodeError:
+                    self.video_cache = {}
+        else:
+            self.video_cache = {}
+            
+    
+    def save_cache(self):
+        with open(self.cache_file, "w") as file:
+            json.dump(self.video_cache, file)
     
     # 매뉴얼 출력
     @commands.command(name = "manual")
@@ -40,9 +58,6 @@ class MusicBot(commands.Cog):
     
     # 링크를 받아 유튜브에서 동영상 제목을 추출
     async def extract_video_title(self, url):
-        if url in self.video_cache:
-            return self.video_cache[url]
-        
         video_title = YouTube(url).title
 
         self.video_cache[url] = video_title
@@ -52,6 +67,9 @@ class MusicBot(commands.Cog):
     
     # 링크를 받아 유튜브에서 오디오 URL을 추출
     async def extract_audio_url(self, url):
+        if url in self.video_cache:
+            return self.video_cache[url]
+        
         ydl_opts = {
             'format': 'bestaudio/best',
             'noplaylist': True,
@@ -65,6 +83,9 @@ class MusicBot(commands.Cog):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download = False)
             audio_url = info['url']
+        
+        self.video_cache[url] = audio_url
+        self.save_cache()
         
         return audio_url
     

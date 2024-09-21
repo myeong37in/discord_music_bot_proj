@@ -1,7 +1,7 @@
 Discord bot playing audio with given YouTube video link
 
 ### How to use it
- This bot is run in Amazon EC2.
+ This bot is run in Google Cloud Platform VM.
  Invite it to your server [Invite Link](https://discord.com/oauth2/authorize?client_id=1286312263631769620&permissions=35184375252992&integration_type=0&scope=bot)
  
  Enter '!manual' to see user manual
