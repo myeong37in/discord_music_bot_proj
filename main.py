@@ -59,8 +59,6 @@ class MusicBot(commands.Cog):
     # 링크를 받아 유튜브에서 동영상 제목을 추출
     async def extract_video_title(self, url):
         video_title = YouTube(url).title
-
-        self.video_cache[url] = video_title
         
         return video_title
     
@@ -95,8 +93,10 @@ class MusicBot(commands.Cog):
 
         self.music_queue.append(url)
         
+        video_title = await self.extract_video_title(url)
+        
         if self.is_playing_now:
-            await ctx.send(f"'{url}' 이 큐에 추가되었습니다.")
+            await ctx.send(f"'{video_title}' 이 큐에 추가되었습니다.")
         else:
             await self.play_next(ctx)
         
@@ -134,18 +134,20 @@ class MusicBot(commands.Cog):
         self.current_song = video_url
         audio_url = await self.extract_audio_url(video_url)
         
-        vc.play(discord.FFmpegPCMAudio(executable="ffmpeg.exe",
+        vc.play(discord.FFmpegOpusAudio(executable="ffmpeg.exe",
                                     source=audio_url, 
                                     before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5", # before_options: 이거 없으면 3분 재생하고 ffmpeg 프로세스가 꺼짐 -> 재생 끊김
-                                    options="-vn -filter:a 'volume=0.7'"), # 기본 볼륨 70%
+                                    options="-vn -filter:a 'volume=0.5'"), # 기본 볼륨 50%
                                     after=lambda e: asyncio.run_coroutine_threadsafe(self.play_next(ctx), self.bot.loop)) # 재생 중인 음악이 끝나면 play_next 실행
         
+        video_title = await self.extract_video_title(video_url)
+        await ctx.send(f"현재 재생 중: {video_title}")
 
     # 스킵 커맨드
     @commands.command(name = "skip")
     async def skip(self, ctx):
         if not self.is_playing_now:
-            await ctx.send("재생 중임 음악이 없습니다.")
+            await ctx.send("재생 중인 음악이 없습니다.")
             return
         
         if ctx.voice_client is not None:
@@ -175,14 +177,14 @@ class MusicBot(commands.Cog):
             return
         
         current_title = await self.extract_video_title(self.current_song)
-        await ctx.send(f"현재 플레이 중: {current_title}")
+        await ctx.send(f"현재 재생 중: {current_title}")
         
         # 큐의 음악 출력
         if len(self.music_queue) > 0:
             queue_message = "큐에 대기 중인 음악\n"
             for i, video_url in enumerate(self.music_queue, start = 1):
                 video_title = await self.extract_video_title(video_url)
-                queue_message += f"{i}. {video_title}\n"
+                queue_message += f"    {i}. {video_title}\n"
             await ctx.send(queue_message)
         
         
@@ -196,7 +198,8 @@ class MusicBot(commands.Cog):
         elif number > 0:
             if number <= len(self.music_queue):
                 removed_song = self.music_queue.pop(number - 1)
-                await ctx.send(f"큐에서 음악을 제거했습니다: {removed_song}")
+                video_title = await self.extract_video_title(removed_song)
+                await ctx.send(f"큐에서 음악을 제거했습니다: {number}. {video_title}")
             else:
                 await ctx.send("잘못된 번호입니다.")
         
