@@ -1,9 +1,10 @@
 import discord
 from discord.ext import commands
-import yt_dlp
 import asyncio
 import os
 from dotenv import load_dotenv # 토큰 가져옴
+from pytube import YouTube
+import subprocess
 
 class MusicBot(commands.Cog):
     def __init__(self, bot):
@@ -12,7 +13,7 @@ class MusicBot(commands.Cog):
         self.is_playing_now = False
         self.current_song = None
         self.video_cache = {} # 캐시 도입
-    
+        self.leave_timer = None
     
     # 매뉴얼 출력
     @commands.command(name = "manual")
@@ -21,13 +22,14 @@ class MusicBot(commands.Cog):
             "play": "!play (유튜브 링크): 음성 채널에 봇이 접속하여 해당 유튜브 링크의 음성을 재생",
             "stop": "!stop: 재생 중인 음악의 재생을 취소하고 봇을 음설 채널에서 내보냄",
             "skip": "!skip: 재생 중인 음악의 재생을 취소 후 큐에 있는 다음 음악을 재생",
-            "queue": "!queue: 재생 중인 음악과 큐에 있는 음악들의 순서, 제목을 출력"
+            "queue": "!queue: 재생 중인 음악과 큐에 있는 음악들의 순서, 제목을 출력",
+            "queue skip": "queue skip (번호): 큐에 있는 번호의 음악을 큐에서 제거함. \n    0: 재생 중인 음악 스킵, 1: 1번 음악 스킵 등"
         }
         
         if command_name is None:
             help_message = "사용 가능 명령어 목록:\n"
             for command, description in command_manual.items():
-                help_message += f"    {command}: {description}\n"
+                help_message += f"    {command}: {description}\n\n"
             await ctx.send(help_message)
         else:
             if command_name in command_manual:
@@ -35,26 +37,14 @@ class MusicBot(commands.Cog):
             else:
                 await ctx.send(f"{command_name} 명령어는 없습니다.")
                 
-                
+    
     # 링크를 받아 유튜브에서 동영상 제목을 추출
     async def extract_video_title(self, url):
         if url in self.video_cache:
             return self.video_cache[url]
         
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'quiet': True,
-        }
-        
-        # 동기화 함수를 비동기적으로 처리
-        def sync_extract():
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-                video_title = info.get('title')  # 제목 추출
-            return video_title
-        
-        video_title = await asyncio.to_thread(sync_extract)
-        
+        video_title = YouTube(url).title
+
         self.video_cache[url] = video_title
         
         return video_title
@@ -62,22 +52,11 @@ class MusicBot(commands.Cog):
     
     # 링크를 받아 유튜브에서 오디오 URL을 추출
     async def extract_audio_url(self, url):
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'quiet': True,
-        }
+        # command line 명령어로 실행
+        result = subprocess.run(['yt-dlp', '--extract-audio', '--get-url', url], stdout=subprocess.PIPE)
+        audio_url = result.stdout.strip()
         
-        # 동기화 함수를 비동기적으로 처리
-        def sync_extract():
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-                audio_url = info['url']  # 제목 추출
-            return audio_url
-        
-        audio_url = await asyncio.to_thread(sync_extract)
-
         return audio_url
-    
     
     # 음악 재생 커맨드
     @commands.command(name = "play")
@@ -89,7 +68,10 @@ class MusicBot(commands.Cog):
             await ctx.send(f"'{url}' 이 큐에 추가되었습니다.")
         else:
             await self.play_next(ctx)
-            
+        
+        if self.leave_timer is not None:
+            self.leave_timer.cancel()
+            self.leave_timer = None
             
     # 큐에서 다음 음악 재생
     async def play_next(self, ctx):
@@ -100,8 +82,11 @@ class MusicBot(commands.Cog):
         else:
             self.is_playing_now = False
             await ctx.send("큐가 비어있습니다. 음악을 추가하세요.")
+            
+            if ctx.voice_client is not None:
+                self.leave_timer = asyncio.create_task(self.leave_after_timeout(ctx))
 
-
+    
     # 음악 재생 코드
     async def play_audio(self, ctx, video_url):
         if ctx.author.voice is None: # 메시지 작성자가 음성 채널에 접속해 있어야 함
@@ -152,7 +137,7 @@ class MusicBot(commands.Cog):
         
 
     # 현재 큐를 확인하는 커맨드
-    @commands.command(name = "queue")
+    @commands.group(name = "queue", invoke_without_command = True)
     async def print_queue(self, ctx):
         if len(self.music_queue) == 0 and self.current_song is None:
             await ctx.send("큐가 비어있습니다.")
@@ -168,7 +153,29 @@ class MusicBot(commands.Cog):
                 video_title = await self.extract_video_title(video_url)
                 queue_message += f"{i}. {video_title}\n"
             await ctx.send(queue_message)
-            
+        
+        
+    # 큐에서 선택한 음악을 제거
+    @print_queue.command(name = "skip")
+    async def queue_skip(self, ctx, number: int):
+        # 입력 번호가 0일 경우 현재 재생 중인 음악을 제거함
+        if number == 0:
+            await self.skip(ctx)
+        
+        elif number > 0:
+            if number <= len(self.music_queue):
+                removed_song = self.music_queue.pop(number - 1)
+                await ctx.send(f"큐에서 음악을 제거했습니다: {removed_song}")
+            else:
+                await ctx.send("잘못된 번호입니다.")
+        
+        
+    async def leave_after_timeout(self, ctx):
+        await asyncio.sleep(180)
+        if not self.is_playing_now and len(self.music_queue) == 0:
+            await ctx.voice_client.disconnect()
+            await ctx.send("활동이 없어 봇을 음성 채널에서 내보냈습니다.")
+        
 # 초기 설정. 명령어의 prefix는 !로 정함
 private_intents = discord.Intents.all()
 bot = commands.Bot(command_prefix = "!", intents = private_intents)
