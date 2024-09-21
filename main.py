@@ -4,7 +4,7 @@ import asyncio
 import os
 from dotenv import load_dotenv # 토큰 가져옴
 from pytube import YouTube
-import subprocess
+import yt_dlp
 
 class MusicBot(commands.Cog):
     def __init__(self, bot):
@@ -52,9 +52,19 @@ class MusicBot(commands.Cog):
     
     # 링크를 받아 유튜브에서 오디오 URL을 추출
     async def extract_audio_url(self, url):
-        # command line 명령어로 실행
-        result = subprocess.run(['yt-dlp', '--extract-audio', '--get-url', url], stdout=subprocess.PIPE)
-        audio_url = result.stdout.strip()
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'noplaylist': True,
+            'extractor_args' : {
+                'youtube' : {
+                    'api_key': youtube_api_key
+                }
+            }
+        }
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download = False)
+            audio_url = info['url']
         
         return audio_url
     
@@ -119,8 +129,8 @@ class MusicBot(commands.Cog):
         
         if ctx.voice_client is not None:
             ctx.voice_client.stop()
-        
-        
+    
+    
     # 음악 재생 중지 및 큐 초기화 커맨드
     @commands.command(name = "stop")
     async def stop(self, ctx):
@@ -155,7 +165,7 @@ class MusicBot(commands.Cog):
             await ctx.send(queue_message)
         
         
-    # 큐에서 선택한 음악을 제거
+    # 큐에서 선택한 음악을 제거하는 커맨드
     @print_queue.command(name = "skip")
     async def queue_skip(self, ctx, number: int):
         # 입력 번호가 0일 경우 현재 재생 중인 음악을 제거함
@@ -181,7 +191,8 @@ private_intents = discord.Intents.all()
 bot = commands.Bot(command_prefix = "!", intents = private_intents)
 
 load_dotenv()
-token = os.getenv("DISCORD_BOT_TOKEN")
+discord_bot_token = os.getenv("DISCORD_BOT_TOKEN")
+youtube_api_key = os.getenv("YOUTUBE_API_KEY")
 
 # 봇이 정상적으로 가동되면 터미널에 "Terminal message"가 출력될 것임. 이때부터 봇 사용
 @bot.event
@@ -192,4 +203,4 @@ async def on_ready():
     print("Terminal message")
 
 # 봇 실행
-bot.run(token)
+bot.run(discord_bot_token)
