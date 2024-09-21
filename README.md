@@ -30,7 +30,7 @@ If you want to run it on your local environment, follow the steps below
 
 3) Run the bot program
 
-How to download and run the program
+How to download and run the program(in Linux. but I'm sure you can clone Github repository in the same way in Windows too)
 1. Clone the repository
     ```bash
     git clone <repository_url>
