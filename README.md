@@ -25,6 +25,7 @@ If you want to run it on your local environment, follow the steps below
     10. Paste it in your browser address bar, it will give you an option in which server you want to invite the bot(you need administrator rights on the server)
 
 2) Getting Youtube API
+    
     Umm.. [YouTube Data API Overview](https://developers.google.com/youtube/v3/getting-started) DIY. Not super hard to do it.
 
 3) Run the bot program
