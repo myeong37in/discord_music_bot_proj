@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import asyncio
 import os
+import platform
 from dotenv import load_dotenv # 토큰 가져옴
 from pytube import YouTube
 import yt_dlp
@@ -14,12 +15,13 @@ class MusicBot(commands.Cog):
         self.is_playing_now = False
         self.current_song = None
         self.leave_timer = None
-
+        # ffmpeg 실행 파일이 환경 변수에 있어야 함
+        self.ffmpeg_executable = "ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
 
     # 매뉴얼 출력
     @commands.command(name = "manual")
     async def print_manual(self, ctx, command_name: str = None):
-        command_manual = {  # 딕셔너리는 신이고 난 병신이다
+        command_manual = {
             "play": "!play (유튜브 링크): 음성 채널에 봇이 접속하여 해당 유튜브 링크의 음성을 재생",
             "stop": "!stop: 재생 중인 음악의 재생을 취소하고 봇을 음설 채널에서 내보냄",
             "skip": "!skip: 재생 중인 음악의 재생을 취소 후 큐에 있는 다음 음악을 재생",
@@ -55,7 +57,7 @@ class MusicBot(commands.Cog):
             return None
         
         audio_filename = f"{video_id}.mp3"
-        audio_filepath = os.path.join("/mnt/audiodisk", audio_filename)
+        audio_filepath = os.path.join(audio_directory, audio_filename)
         
         if os.path.exists(audio_filepath):
             return audio_filepath
@@ -154,7 +156,7 @@ class MusicBot(commands.Cog):
         self.current_song = video_url
         audio_source = await self.download_audio_file(video_url)
         
-        vc.play(discord.FFmpegOpusAudio(executable = "ffmpeg",
+        vc.play(discord.FFmpegOpusAudio(executable = self.ffmpeg_executable,
                                     source = audio_source,                                  
                                     options = "-vn -filter:a 'volume=0.5'"), # 기본 볼륨 50%
                                     after = lambda e: asyncio.run_coroutine_threadsafe(self.play_next(ctx), self.bot.loop)) # 재생 중인 음악이 끝나면 play_next 실행
@@ -226,7 +228,7 @@ class MusicBot(commands.Cog):
         
         
     async def leave_after_timeout(self, ctx):
-        await asyncio.sleep(180)
+        await asyncio.sleep(1801) # 대기 시간 3분
         if not self.is_playing_now and len(self.music_queue) == 0:
             await ctx.voice_client.disconnect()
             await ctx.send("활동이 없어 봇을 음성 채널에서 내보냈습니다.")
@@ -238,6 +240,7 @@ bot = commands.Bot(command_prefix = "!", intents = private_intents)
 load_dotenv()
 discord_bot_token = os.getenv("DISCORD_BOT_TOKEN")
 youtube_api_key = os.getenv("YOUTUBE_API_KEY")
+audio_directory = os.getenv("LOCAL_AUDIO_STORAGE")
 
 # 봇이 정상적으로 가동되면 터미널에 "Terminal message"가 출력될 것임. 이때부터 봇 사용
 @bot.event
