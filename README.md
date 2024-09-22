@@ -37,7 +37,6 @@ How to download and run the program(in Linux. but I'm sure you can clone Github 
 2. Copy '.env.example' to '.env' and fill in the required values(discord bot token, youtube api which you have copied earlier)
     ```bash
     cp .env.example .env
-3. make 'audio_url_cache.json' <- cache file
-    ```bash
-    touch audio_url_cache.json
-3. Run main.py in your IDE
+3. Modify 'audio_filepath' in method 'download_audio_file' (/mnt/audiodisk -> (your directory))
+4. Modify ffmpeg 'executable' in method 'play_audio' if you're on Windows(ffmpeg -> ffmpeg.exe)
+5. Run main.py in your IDE
