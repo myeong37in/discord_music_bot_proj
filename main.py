@@ -55,7 +55,7 @@ class MusicBot(commands.Cog):
             return None
         
         audio_filename = f"{video_id}.mp3"
-        audio_filepath = os.path.join("E:/audio", audio_filename)
+        audio_filepath = os.path.join("/mnt/audiodisk", audio_filename)
         
         if os.path.exists(audio_filepath):
             return audio_filepath
@@ -81,8 +81,18 @@ class MusicBot(commands.Cog):
         # StackOverflow의 고수 개발자님들 충성
         # youtube.com과 youtu.be에 맞는 패턴. http, https, 또는 아무것도 없는 경우를 처리
         regex_patterns = [
-            r'(?:https?://)?(?:www\.)?youtu\.be/([a-zA-Z0-9_-]{11})',  # youtu.be/ID 형식
-            r'(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})'  # youtube.com/watch?v=ID 형식
+                # youtu.be/ID 형식
+                r'(?:https?://)?(?:www\.)?youtu\.be/([a-zA-Z0-9_-]{11})',                 
+                # youtube.com/watch?v=ID 형식
+                r'(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})',                 
+                # music.youtube.com/watch?v=ID 형식
+                r'(?:https?://)?(?:music\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})',                 
+                # youtube.com/shorts/ID 형식
+                r'(?:https?://)?(?:www\.)?youtube\.com/shorts/([a-zA-Z0-9_-]{11})',  
+                # 특정 시간에서 시작하는 동영상
+                r'(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})&t=\d+s', 
+                # 플레이리스트 내의 동영상
+                r'(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})&list=([a-zA-Z0-9_-]+)' 
         ]
 
         for pattern in regex_patterns:
@@ -144,8 +154,8 @@ class MusicBot(commands.Cog):
         self.current_song = video_url
         audio_source = await self.download_audio_file(video_url)
         
-        vc.play(discord.FFmpegOpusAudio(executable = "ffmpeg.exe",
-                                    source = audio_source, 
+        vc.play(discord.FFmpegOpusAudio(executable = "ffmpeg",
+                                    source = audio_source,                                  
                                     options = "-vn -filter:a 'volume=0.5'"), # 기본 볼륨 50%
                                     after = lambda e: asyncio.run_coroutine_threadsafe(self.play_next(ctx), self.bot.loop)) # 재생 중인 음악이 끝나면 play_next 실행
  
@@ -183,19 +193,19 @@ class MusicBot(commands.Cog):
     # 현재 큐를 확인하는 커맨드
     @commands.group(name = "queue", invoke_without_command = True)
     async def print_queue(self, ctx):
-        if len(self.music_queue) == 0 and self.current_song is None:
+        if len(self.music_queue) == 0 and self.current_song is none:
             await ctx.send("큐가 비어있습니다.")
             return
         
         current_title = await self.extract_video_title(self.current_song)
-        await ctx.send(f"현재 재생 중: {current_title}")
+        await ctx.send(f"현재 재생 중: {current_title}\n")
         
         # 큐의 음악 출력
         if len(self.music_queue) > 0:
-            queue_message = "큐에 대기 중인 음악"
+            queue_message = "큐에 대기 중인 음악\n"
             for i, video_url in enumerate(self.music_queue, start = 1):
                 video_title = await self.extract_video_title(video_url)
-                queue_message += f"    {i}. {video_title}\n"
+                queue_message += f"{i}. {video_title}\n"
             await ctx.send(queue_message)
         
         
