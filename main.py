@@ -13,26 +13,9 @@ class MusicBot(commands.Cog):
         self.music_queue = []
         self.is_playing_now = False
         self.current_song = None
-        self.video_cache = {} # 캐시 도입
         self.leave_timer = None
-        self.cache_file = "audio_url_cache.json"
-        self.load_cache()
-    
-    def load_cache(self):
-        if os.path.exists(self.cache_file):
-            with open(self.cache_file, "r") as file:
-                try:
-                    self.video_cache = json.load(file)
-                except json.JSONDecodeError:
-                    self.video_cache = {}
-        else:
-            self.video_cache = {}
-            
-    
-    def save_cache(self):
-        with open(self.cache_file, "w") as file:
-            json.dump(self.video_cache, file)
-    
+
+
     # 매뉴얼 출력
     @commands.command(name = "manual")
     async def print_manual(self, ctx, command_name: str = None):
@@ -63,13 +46,17 @@ class MusicBot(commands.Cog):
         return video_title
     
     
-    # 링크를 받아 유튜브에서 오디오 URL을 추출
-    async def extract_audio_url(self, url):
-        if url in self.video_cache:
-            return self.video_cache[url]
+    # 링크를 받아 기존에 오디오 파일이 있으면 파일 경로를 반환. 없다면 유튜브에서 오디오 URL을 추출, 반환
+    async def extract_audio_url_and_file(self, url):
+        audio_filename = f"{self.extract_video_title(url)}.mp3"
+        audio_filepath = os.path.join("/mnt/audiodisk", audio_filename)
+        
+        if os.path.exists(audio_filename):
+            return audio_filepath
         
         ydl_opts = {
             'format': 'bestaudio/best',
+            'outtmpl': audio_filepath, # 오디오 파일 저장
             'noplaylist': True,
             'extractor_args' : {
                 'youtube' : {
@@ -79,18 +66,14 @@ class MusicBot(commands.Cog):
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download = False)
-            audio_url = info['url']
+            ydl.download([url])
         
-        self.video_cache[url] = audio_url
-        self.save_cache()
-        
-        return audio_url
+        return audio_filepath
+    
     
     # 음악 재생 커맨드
     @commands.command(name = "play")
     async def play(self, ctx, url: str):
-
         self.music_queue.append(url)
         
         video_title = await self.extract_video_title(url)
@@ -103,6 +86,7 @@ class MusicBot(commands.Cog):
         if self.leave_timer is not None:
             self.leave_timer.cancel()
             self.leave_timer = None
+            
             
     # 큐에서 다음 음악 재생
     async def play_next(self, ctx):
@@ -132,16 +116,17 @@ class MusicBot(commands.Cog):
             vc = ctx.voice_client
 
         self.current_song = video_url
-        audio_url = await self.extract_audio_url(video_url)
+        audio_source = await self.extract_audio_url(video_url)
         
-        vc.play(discord.FFmpegOpusAudio(executable="ffmpeg.exe",
-                                    source=audio_url, 
+        vc.play(discord.FFmpegOpusAudio(executable="ffmpeg",
+                                    source=audio_source, 
                                     before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5", # before_options: 이거 없으면 3분 재생하고 ffmpeg 프로세스가 꺼짐 -> 재생 끊김
                                     options="-vn -filter:a 'volume=0.5'"), # 기본 볼륨 50%
                                     after=lambda e: asyncio.run_coroutine_threadsafe(self.play_next(ctx), self.bot.loop)) # 재생 중인 음악이 끝나면 play_next 실행
         
         video_title = await self.extract_video_title(video_url)
         await ctx.send(f"현재 재생 중: {video_title}")
+
 
     # 스킵 커맨드
     @commands.command(name = "skip")
