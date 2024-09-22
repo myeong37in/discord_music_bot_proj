@@ -5,7 +5,7 @@ import os
 from dotenv import load_dotenv # 토큰 가져옴
 from pytube import YouTube
 import yt_dlp
-import json
+import re
 
 class MusicBot(commands.Cog):
     def __init__(self, bot):
@@ -41,42 +41,68 @@ class MusicBot(commands.Cog):
     
     # 링크를 받아 유튜브에서 동영상 제목을 추출
     async def extract_video_title(self, url):
-        video_title = YouTube(url).title
-        
-        return video_title
+        try:
+            video_title = YouTube(url).title
+            return video_title
+        except Exception:
+            return None
     
     
-    # 링크를 받아 기존에 오디오 파일이 있으면 파일 경로를 반환. 없다면 유튜브에서 오디오 URL을 추출, 반환
-    async def extract_audio_url_and_file(self, url):
-        audio_filename = f"{self.extract_video_title(url)}.mp3"
-        audio_filepath = os.path.join("/mnt/audiodisk", audio_filename)
+    # 링크를 받아 기존에 오디오 파일이 있으면 파일 경로를 반환. 없다면 다운로드하여 경로를 반환
+    async def download_audio_file(self, url):
+        video_id = await self.get_video_id(url)
+        if video_id is None:
+            return None
         
-        if os.path.exists(audio_filename):
+        audio_filename = f"{video_id}.mp3"
+        audio_filepath = os.path.join("E:/audio", audio_filename)
+        
+        if os.path.exists(audio_filepath):
             return audio_filepath
         
         ydl_opts = {
             'format': 'bestaudio/best',
-            'outtmpl': audio_filepath, # 오디오 파일 저장
+            'outtmpl': audio_filepath,  # 다운로드할 파일 경로 지정
             'noplaylist': True,
-            'extractor_args' : {
-                'youtube' : {
+            'extractor_args': {
+                'youtube': {
                     'api_key': youtube_api_key
                 }
             }
         }
-        
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
+            ydl.download([url])  # 파일 다운로드
         
         return audio_filepath
     
+
+    async def get_video_id(self, url):
+        # StackOverflow의 고수 개발자님들 충성
+        # youtube.com과 youtu.be에 맞는 패턴. http, https, 또는 아무것도 없는 경우를 처리
+        regex_patterns = [
+            r'(?:https?://)?(?:www\.)?youtu\.be/([a-zA-Z0-9_-]{11})',  # youtu.be/ID 형식
+            r'(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})'  # youtube.com/watch?v=ID 형식
+        ]
+
+        for pattern in regex_patterns:
+            match = re.match(pattern, url)
+            if match:
+                return match.group(1)  # 비디오 ID 반환
+        
+        return None
+
     
     # 음악 재생 커맨드
     @commands.command(name = "play")
     async def play(self, ctx, url: str):
-        self.music_queue.append(url)
-        
         video_title = await self.extract_video_title(url)
+        
+        if video_title is None:
+            await ctx.send("잘못된 링크입니다.")
+            return
+        
+        self.music_queue.append(url)
         
         if self.is_playing_now:
             await ctx.send(f"'{video_title}' 이 큐에 추가되었습니다.")
@@ -116,13 +142,13 @@ class MusicBot(commands.Cog):
             vc = ctx.voice_client
 
         self.current_song = video_url
-        audio_source = await self.extract_audio_url(video_url)
+        audio_source = await self.download_audio_file(video_url)
         
-        vc.play(discord.FFmpegOpusAudio(executable="ffmpeg",
-                                    source=audio_source, 
-                                    before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5", # before_options: 이거 없으면 3분 재생하고 ffmpeg 프로세스가 꺼짐 -> 재생 끊김
-                                    options="-vn -filter:a 'volume=0.5'"), # 기본 볼륨 50%
-                                    after=lambda e: asyncio.run_coroutine_threadsafe(self.play_next(ctx), self.bot.loop)) # 재생 중인 음악이 끝나면 play_next 실행
+        vc.play(discord.FFmpegOpusAudio(executable = "ffmpeg.exe",
+                                    source = audio_source, 
+                                    options = "-vn -filter:a 'volume=0.5'"), # 기본 볼륨 50%
+                                    after = lambda e: asyncio.run_coroutine_threadsafe(self.play_next(ctx), self.bot.loop)) # 재생 중인 음악이 끝나면 play_next 실행
+ 
         
         video_title = await self.extract_video_title(video_url)
         await ctx.send(f"현재 재생 중: {video_title}")
@@ -166,7 +192,7 @@ class MusicBot(commands.Cog):
         
         # 큐의 음악 출력
         if len(self.music_queue) > 0:
-            queue_message = "큐에 대기 중인 음악\n"
+            queue_message = "큐에 대기 중인 음악"
             for i, video_url in enumerate(self.music_queue, start = 1):
                 video_title = await self.extract_video_title(video_url)
                 queue_message += f"    {i}. {video_title}\n"
