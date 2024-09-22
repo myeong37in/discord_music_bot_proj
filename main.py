@@ -193,7 +193,7 @@ class MusicBot(commands.Cog):
     # 현재 큐를 확인하는 커맨드
     @commands.group(name = "queue", invoke_without_command = True)
     async def print_queue(self, ctx):
-        if len(self.music_queue) == 0 and self.current_song is none:
+        if len(self.music_queue) == 0 and self.current_song is None:
             await ctx.send("큐가 비어있습니다.")
             return
         
