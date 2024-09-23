@@ -228,7 +228,7 @@ class MusicBot(commands.Cog):
         
         
     async def leave_after_timeout(self, ctx):
-        await asyncio.sleep(1801) # 대기 시간 3분
+        await asyncio.sleep(180) # 대기 시간 3분
         if not self.is_playing_now and len(self.music_queue) == 0:
             await ctx.voice_client.disconnect()
             await ctx.send("활동이 없어 봇을 음성 채널에서 내보냈습니다.")
