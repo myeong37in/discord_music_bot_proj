@@ -94,7 +94,9 @@ class MusicBot(commands.Cog):
                 # 특정 시간에서 시작하는 동영상
                 r'(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})&t=\d+s', 
                 # 플레이리스트 내의 동영상
-                r'(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})&list=([a-zA-Z0-9_-]+)' 
+                r'(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})&list=([a-zA-Z0-9_-]+)'
+                # Start Radio 파라미터가 포함된 동영상
+                r'(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})&list=([a-zA-Z0-9_-]+)&start_radio=1'
         ]
 
         for pattern in regex_patterns:
@@ -155,6 +157,10 @@ class MusicBot(commands.Cog):
 
         self.current_song = video_url
         audio_source = await self.download_audio_file(video_url)
+        
+        if audio_source is None:
+            await ctx.send("잘못된 링크입니다.")
+            return
         
         vc.play(discord.FFmpegOpusAudio(executable = self.ffmpeg_executable,
                                     source = audio_source,                                  
