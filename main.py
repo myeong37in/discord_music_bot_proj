@@ -12,10 +12,11 @@ class MusicBot(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.music_queue = []
-        self.is_playing_now = False
         self.current_song = None
         self.leave_timer = None
-        # ffmpeg 실행 파일이 환경 변수에 있어야 함
+        # ffmpeg 실행 파일이 PYTHONPATH에 있어야 함. 아래 코드 참고
+        # import sys
+        # print(sys.path)
         self.ffmpeg_executable = "ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
 
     # 매뉴얼 출력
@@ -26,7 +27,9 @@ class MusicBot(commands.Cog):
             "stop": "!stop: 재생 중인 음악의 재생을 취소하고 봇을 음설 채널에서 내보냄",
             "skip": "!skip: 재생 중인 음악의 재생을 취소 후 큐에 있는 다음 음악을 재생",
             "queue": "!queue: 재생 중인 음악과 큐에 있는 음악들의 순서, 제목을 출력",
-            "queue skip": "queue skip (번호): 큐에 있는 번호의 음악을 큐에서 제거함. \n    0: 재생 중인 음악 스킵, 1: 1번 음악 스킵 등"
+            "queue skip": "queue skip (번호): 큐에 있는 번호의 음악을 큐에서 제거함. \n    0: 재생 중인 음악 스킵, 1: 1번 음악 스킵 등",
+            "pause": "!pause: 현재 재생 중인 음악을 일시정지",
+            "resume": "!resume: 일시정지 중인 음악을 다시 재생"
         }
         
         if command_name is None:
@@ -94,7 +97,7 @@ class MusicBot(commands.Cog):
                 # 특정 시간에서 시작하는 동영상
                 r'(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})&t=\d+s', 
                 # 플레이리스트 내의 동영상
-                r'(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})&list=([a-zA-Z0-9_-]+)'
+                r'(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})&list=([a-zA-Z0-9_-]+)',
                 # Start Radio 파라미터가 포함된 동영상
                 r'(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})&list=([a-zA-Z0-9_-]+)&start_radio=1'
         ]
@@ -110,6 +113,18 @@ class MusicBot(commands.Cog):
     # 음악 재생 커맨드
     @commands.command(name = "play")
     async def play(self, ctx, url: str):
+
+        if ctx.author.voice is None: # 메시지 작성자가 음성 채널에 접속해 있어야 함
+            await ctx.send("먼저 음성 채널에 들어가세요")
+            return
+
+        voice_channel = ctx.author.voice.channel # 작성자의 채널에 음악이 재생됨
+        
+        if ctx.voice_client is None: # 봇을 음성 채널에 연결
+            vc = await voice_channel.connect()
+        else:
+            vc = ctx.voice_client
+
         video_title = await self.extract_video_title(url)
         
         if video_title is None:
@@ -118,7 +133,7 @@ class MusicBot(commands.Cog):
         
         self.music_queue.append(url)
         
-        if self.is_playing_now:
+        if vc.is_playing():
             await ctx.send(f"'{video_title}' 이 큐에 추가되었습니다.")
         else:
             await self.play_next(ctx)
@@ -130,30 +145,21 @@ class MusicBot(commands.Cog):
             
     # 큐에서 다음 음악 재생
     async def play_next(self, ctx):
+        vc = ctx.voice_client
+
         if len(self.music_queue) > 0:
-            self.is_playing_now = True
             next_url = self.music_queue.pop(0)
             await self.play_audio(ctx, next_url)
         else:
-            self.is_playing_now = False
             await ctx.send("큐가 비어있습니다. 음악을 추가하세요.")
             
-            if ctx.voice_client is not None:
+            if vc is not None:
                 self.leave_timer = asyncio.create_task(self.leave_after_timeout(ctx))
 
     
     # 음악 재생 코드
     async def play_audio(self, ctx, video_url):
-        if ctx.author.voice is None: # 메시지 작성자가 음성 채널에 접속해 있어야 함
-            await ctx.send("먼저 음성 채널에 들어가세요")
-            return
-        
-        voice_channel = ctx.author.voice.channel # 작성자의 채널에 음악이 재생됨
-        
-        if ctx.voice_client is None: # 봇을 음성 채널에 연결
-            vc = await voice_channel.connect()
-        else:
-            vc = ctx.voice_client
+        vc = ctx.voice_client
 
         self.current_song = video_url
         audio_source = await self.download_audio_file(video_url)
@@ -175,7 +181,7 @@ class MusicBot(commands.Cog):
     # 스킵 커맨드
     @commands.command(name = "skip")
     async def skip(self, ctx):
-        if not self.is_playing_now:
+        if not ctx.voice_client.is_playing():
             await ctx.send("재생 중인 음악이 없습니다.")
             return
         
@@ -186,16 +192,14 @@ class MusicBot(commands.Cog):
     # 음악 재생 중지 및 큐 초기화 커맨드
     @commands.command(name = "stop")
     async def stop(self, ctx):
-        if ctx.voice_client is None:
-            return
-        
-        ctx.voice_client.stop()
-        await ctx.voice_client.disconnect()
+        if ctx.voice_client is not None:
+            ctx.voice_client.stop()
+            await ctx.voice_client.disconnect()
+            await ctx.send("음악 재생이 중지되었습니다.")
         
         self.music_queue.clear()
-        self.is_playing_now = False
         
-        await ctx.send("음악 재생이 중지되었습니다. 큐가 초기화되었습니다.")
+        await ctx.send("큐가 초기화되었습니다.")
         
 
     # 현재 큐를 확인하는 커맨드
@@ -231,11 +235,43 @@ class MusicBot(commands.Cog):
                 await ctx.send(f"큐에서 음악을 제거했습니다: {number}. {video_title}")
             else:
                 await ctx.send("잘못된 번호입니다.")
+    
+
+    # 현재 재생 중인 음악을 일시정지하는 커맨드
+    @commands.command(name = "pause")
+    async def pause(self, ctx):
+        vc = ctx.voice_client
+
+        if not vc or not vc.is_playing():
+            await ctx.send("봇이 음악을 재생 중이지 않습니다.")
+        elif vc.is_paused():
+            await ctx.send("이미 음악이 일시정지되었습니다")
         
-        
+        vc.pause()
+        await ctx.send("음악을 일시정지했습니다.")
+
+    
+    # 일시정지한 음악을 재생하는 커맨드
+    @commands.command(name = "resume")
+    async def resume(self, ctx):
+        vc = ctx.voice_client
+
+        if not vc:
+            await ctx.send("봇이 연결되지 않았습니다.")
+        elif vc.is_playing():
+            await ctx.send("이미 음악이 재생 중입니다.")
+
+        vc.resume()
+        await ctx.send("음악을 다시 재생했습니다.")
+
+    
+    # 음악을 검색하는 커맨드
+    # @commands.command(name = "search")
+
+
     async def leave_after_timeout(self, ctx):
         await asyncio.sleep(180) # 대기 시간 3분
-        if not self.is_playing_now and len(self.music_queue) == 0:
+        if not ctx.voice_client.is_playing() and len(self.music_queue) == 0:
             await ctx.voice_client.disconnect()
             await ctx.send("활동이 없어 봇을 음성 채널에서 내보냈습니다.")
         
