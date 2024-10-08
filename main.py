@@ -151,8 +151,6 @@ class MusicBot(commands.Cog):
             next_url = self.music_queue.pop(0)
             await self.play_audio(ctx, next_url)
         else:
-            await ctx.send("큐가 비어있습니다. 음악을 추가하세요.")
-            
             if vc is not None:
                 self.leave_timer = asyncio.create_task(self.leave_after_timeout(ctx))
 
