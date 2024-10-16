@@ -265,8 +265,7 @@ class MusicBot(commands.Cog):
     
     # 음악을 검색하는 커맨드
     # @commands.command(name = "search")
-
-
+    
     async def leave_after_timeout(self, ctx):
         await asyncio.sleep(180) # 대기 시간 3분
         if not ctx.voice_client.is_playing() and len(self.music_queue) == 0:
@@ -289,6 +288,47 @@ async def on_ready():
     await bot.add_cog(MusicBot(bot)) # 봇 명령어 등록
     await bot.change_presence(status=discord.Status.online, activity=discord.Game("!manual: 매뉴얼 출력")) # 봇의 상태 메시지
     print("Terminal message")
+
+# discord.py에서 제공하는 event callback 함수
+@bot.event
+async def on_voice_state_update(member, before, after):
+    target_user_tag = "personwhoisnotfullyconsciou" # 스윈들러 등장
+    # 사용자의 discord tag가 target_user_tag와 같을 때만 동작 
+    if after.channel is not None and (str(member) == target_user_tag):
+        voice_channel = after.channel
+
+        if not member.guild.voice_client:
+            vc = await voice_channel.connect()
+            await play_audio_for_user(vc, "Swindler.mp3", disconnect_after = True)
+        else:
+            vc = member.guild.voice_client
+
+            if vc.is_playing():
+                vc.pause()
+                await play_audio_for_user(vc, "Swindler.mp3", disconnect_after = False)
+                vc.resume()
+            else:
+                await play_audio_for_user(vc, "Swindler.mp3", disconnect_after = True)
+
+async def play_audio_for_user(vc, audio_file, disconnect_after = False):
+    audio_path = os.path.join(audio_directory, audio_file)
+    
+    await asyncio.sleep(1)
+    
+    def after_play(error):
+        if error:
+            print(f"error name: {error}")
+        if disconnect_after:
+            after_play = asyncio.run_coroutine_threadsafe(vc.disconnect(), vc.loop)
+
+    vc.play(discord.FFmpegOpusAudio(
+        executable = "ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg",
+        source = audio_path,
+        options = "-vn -filter:a 'volume=0.5'"),
+        after = after_play) # expects a callable for the "after" parameter
+
+    if vc.is_playing():
+        await asyncio.sleep(4)
 
 # 봇 실행
 bot.run(discord_bot_token)
