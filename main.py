@@ -294,7 +294,7 @@ async def on_ready():
 async def on_voice_state_update(member, before, after):
     target_user_tag = "personwhoisnotfullyconsciou" # 스윈들러 등장
     # 사용자의 discord tag가 target_user_tag와 같을 때만 동작 
-    if after.channel is not None and (str(member) == target_user_tag):
+    if before.channel is None and after.channel is not None and (str(member) == target_user_tag):
         voice_channel = after.channel
 
         if not member.guild.voice_client:
@@ -324,7 +324,7 @@ async def play_audio_for_user(vc, audio_file, disconnect_after = False):
     vc.play(discord.FFmpegOpusAudio(
         executable = "ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg",
         source = audio_path,
-        options = "-vn -filter:a 'volume=0.5'"),
+        options = "-vn -filter:a 'volume=0.8'"),
         after = after_play) # expects a callable for the "after" parameter
 
     if vc.is_playing():
