@@ -4,7 +4,8 @@ import asyncio
 import os
 import platform
 from dotenv import load_dotenv # 토큰 가져옴
-from pytube import YouTube
+from pytubefix import YouTube
+from pytubefix.cli import on_progress
 import yt_dlp
 import re
 
@@ -47,8 +48,8 @@ class MusicBot(commands.Cog):
     # 링크를 받아 유튜브에서 동영상 제목을 추출
     async def extract_video_title(self, url):
         try:
-            video_title = YouTube(url).title
-            return video_title
+            video_title = YouTube(url, on_progress_callback = on_progress)
+            return video_title.title
         except Exception:
             return None
     
@@ -129,7 +130,6 @@ class MusicBot(commands.Cog):
         
         if video_title is None:
             await ctx.send("잘못된 링크입니다.")
-            return
         
         self.music_queue.append(url)
         
@@ -296,6 +296,8 @@ async def on_voice_state_update(member, before, after):
     # 사용자의 discord tag가 target_user_tag와 같을 때만 동작 
     if before.channel is None and after.channel is not None and (str(member) == target_user_tag):
         voice_channel = after.channel
+        
+        await asyncio.sleep(1)
 
         if not member.guild.voice_client:
             vc = await voice_channel.connect()
